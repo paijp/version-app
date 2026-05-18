@@ -7,18 +7,27 @@ android {
     namespace 'com.example.versionapp'
     compileSdk 34
 
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("KEYSTORE_PATH") ?: "debug.keystore")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            keyAlias System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "android"
+        }
+    }
+
     defaultConfig {
         applicationId "com.example.versionapp"
         minSdk 26
         targetSdk 34
-        versionCode 4
-        versionName "1.2.0"
+        versionCode 5
+        versionName "1.3.0"
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.getByName("debug")
+            signingConfig signingConfigs.release
         }
     }
 
