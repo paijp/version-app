@@ -28,13 +28,22 @@ jobs:
         with:
           gradle-version: "8.4"
 
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/release.jks
+
       - name: Build Release APK
         run: gradle assembleRelease
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Get version name
         id: version
         run: |
-          VERSION=$(grep "versionName" app/build.gradle | sed 's/.*versionName \"\(.*\)\"/\1/' | tr -d ' ')
+          VERSION=$(grep "versionName" app/build.gradle | sed 's/.*versionName "\(.*\)"//' | tr -d ' ')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Rename APK
