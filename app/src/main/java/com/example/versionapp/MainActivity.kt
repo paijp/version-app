@@ -21,12 +21,16 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.example.versionapp.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var downloadReceiver: BroadcastReceiver? = null
+    private val logLines = mutableListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +41,8 @@ class MainActivity : AppCompatActivity() {
         binding.tvVersionCode.text = "Version Code: ${BuildConfig.VERSION_CODE}"
         binding.tvAppId.text = "App ID: ${BuildConfig.APPLICATION_ID}"
 
+        log("アプリ起動: v${BuildConfig.VERSION_NAME}")
+        log("バージョンチェック開始...")
         checkForUpdate()
     }
 
@@ -45,11 +51,28 @@ class MainActivity : AppCompatActivity() {
         downloadReceiver?.let { unregisterReceiver(it) }
     }
 
+    private fun log(message: String) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        val line = "[$time] $message"
+        logLines.add(line)
+        // 最新20行のみ表示
+        binding.tvLog.text = logLines.takeLast(20).joinToString("\n")
+        binding.svLog.post { binding.svLog.fullScroll(android.view.View.FOCUS_DOWN) }
+    }
+
     private fun checkForUpdate() {
         lifecycleScope.launch {
-            val latest = fetchLatestRelease() ?: return@launch
+            val latest = fetchLatestRelease()
+            if (latest == null) {
+                log("⚠️ バージョン情報の取得に失敗しました")
+                return@launch
+            }
+            log("最新バージョン: v${latest.first}")
             if (isUpdateAvailable(BuildConfig.VERSION_NAME, latest.first)) {
+                log("✅ アップデートあり → ダイアログを表示")
                 showUpdateDialog(latest.first, latest.second)
+            } else {
+                log("✅ 最新バージョンです")
             }
         }
     }
@@ -106,7 +129,7 @@ class MainActivity : AppCompatActivity() {
     private fun checkInstallPermissionAndDownload(apkUrl: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !packageManager.canRequestPackageInstalls()) {
-            // 提供元不明アプリのインストール許可を求める
+            log("⚠️ インストール許可が必要です")
             AlertDialog.Builder(this)
                 .setTitle("インストール許可が必要です")
                 .setMessage("このアプリからのインストールを許可してください。\n設定画面を開きますか？")
@@ -116,7 +139,6 @@ class MainActivity : AppCompatActivity() {
                         Uri.parse("package:$packageName")
                     )
                     startActivityForResult(intent, REQUEST_INSTALL_PERMISSION)
-                    // 許可後に再度ダウンロードできるよう保存
                     pendingApkUrl = apkUrl
                 }
                 .setNegativeButton("キャンセル", null)
@@ -140,6 +162,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun downloadAndInstall(apkUrl: String) {
+        log("⬇️ ダウンロード開始...")
         val fileName = "update.apk"
         val destFile = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         if (destFile.exists()) destFile.delete()
@@ -158,6 +181,7 @@ class MainActivity : AppCompatActivity() {
             override fun onReceive(ctx: Context, intent: Intent) {
                 val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
                 if (id == downloadId) {
+                    log("✅ ダウンロード完了 → インストール開始")
                     installApk(destFile)
                     unregisterReceiver(this)
                     downloadReceiver = null
